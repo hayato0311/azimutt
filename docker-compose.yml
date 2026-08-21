@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres
+    image: postgres:16-alpine
     restart: always
     container_name: azimutt-db
     volumes:
@@ -9,6 +9,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: azimutt_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d azimutt_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   backend:
     container_name: azimutt-backend
     restart: always
@@ -16,7 +21,8 @@ services:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     ports: # Docker need to expose ports for you to access your app.
       - 4000:4000
     env_file: .env
