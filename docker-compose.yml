@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres
+    image: postgres:16-alpine
     restart: always
     container_name: azimutt-db
     volumes:
@@ -9,20 +9,28 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: azimutt_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d azimutt_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   backend:
     container_name: azimutt-backend
-    platform: linux/amd64
     restart: always
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     ports: # Docker need to expose ports for you to access your app.
       - 4000:4000
     env_file: .env
     environment:
       DATABASE_URL: "ecto://postgres:postgres@database/azimutt_dev" # Template : "ecto://db_user:db_password@ip_or_compose_service_name/db_name"
       SECRET_KEY_BASE: "1wOVZ9rWAqPcbVZdilZzBPLXFKNrUmLUzX0q9Z02LpOy2jVWZwa6ee4fU81tuN+W" # Can literally be anything, but generally generated randomly by tools like mix phx.gen.secret
+    volumes:
+      - ${AZIMUTT_PROJECTS_DIR:-./projects}:/app/bin/uploads
+      - ${AZIMUTT_PROJECTS_DIR:-./projects}:/app/uploads
 volumes:
   pg-data:
