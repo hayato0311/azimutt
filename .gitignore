@@ -2,6 +2,7 @@
 .idea
 .DS_Store
 .env
+/projects/
 .clever.json
 node_modules
 addon-manifest.json

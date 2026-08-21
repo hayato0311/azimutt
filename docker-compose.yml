@@ -29,5 +29,8 @@ services:
     environment:
       DATABASE_URL: "ecto://postgres:postgres@database/azimutt_dev" # Template : "ecto://db_user:db_password@ip_or_compose_service_name/db_name"
       SECRET_KEY_BASE: "1wOVZ9rWAqPcbVZdilZzBPLXFKNrUmLUzX0q9Z02LpOy2jVWZwa6ee4fU81tuN+W" # Can literally be anything, but generally generated randomly by tools like mix phx.gen.secret
+    volumes:
+      - ${AZIMUTT_PROJECTS_DIR:-./projects}:/app/bin/uploads
+      - ${AZIMUTT_PROJECTS_DIR:-./projects}:/app/uploads
 volumes:
   pg-data:
