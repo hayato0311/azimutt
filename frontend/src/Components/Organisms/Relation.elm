@@ -1,4 +1,4 @@
-module Components.Organisms.Relation exposing (Direction(..), Model, doc, show)
+module Components.Organisms.Relation exposing (Cardinalities, Direction(..), Model, doc, show)
 
 import ElmBook.Actions exposing (logAction)
 import ElmBook.Chapter as Chapter exposing (Chapter)
@@ -13,6 +13,7 @@ import Libs.Svg.Attributes exposing (css)
 import Libs.Svg.Utils exposing (circle, curveTo, lineTo, moveTo)
 import Libs.Tailwind as Tw exposing (Color, fill_500, stroke_500)
 import Models.Position as Position
+import Models.Project.RelationCardinality exposing (RelationCardinality(..))
 import Models.RelationStyle as RelationStyle exposing (RelationStyle)
 import Svg exposing (Attribute, Svg, svg, text)
 import Svg.Attributes exposing (class, d, height, style, width, x1, x2, y1, y2)
@@ -20,6 +21,12 @@ import Svg.Attributes exposing (class, d, height, style, width, x1, x2, y1, y2)
 
 type alias Model =
     { hover : Bool }
+
+
+type alias Cardinalities =
+    { src : RelationCardinality
+    , ref : RelationCardinality
+    }
 
 
 
@@ -43,35 +50,35 @@ type Direction
     | None
 
 
-show : RelationStyle -> Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
-show style model src ref lineStyle color label onHover =
+show : RelationStyle -> Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
+show style model cardinalities src ref lineStyle color label onHover =
     case style of
         RelationStyle.Bezier ->
-            bezier model src ref lineStyle color label onHover
+            bezier model cardinalities src ref lineStyle color label onHover
 
         RelationStyle.Straight ->
-            straight model src ref lineStyle color label onHover
+            straight model cardinalities src ref lineStyle color label onHover
 
         RelationStyle.Steps ->
-            steps model src ref lineStyle color label onHover
+            steps model cardinalities src ref lineStyle color label onHover
 
 
-straight : Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
-straight model ( src, _ ) ( ref, _ ) lineStyle color label onHover =
+straight : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
+straight model cardinalities ( src, srcDir ) ( ref, refDir ) lineStyle color label onHover =
     buildSvg { src = src, ref = ref, label = label, padding = 12 }
-        (\origin -> drawLine model (src |> Position.moveCanvas origin) (ref |> Position.moveCanvas origin) lineStyle color onHover)
+        (\origin -> drawLine model cardinalities ( src |> Position.moveCanvas origin, srcDir ) ( ref |> Position.moveCanvas origin, refDir ) lineStyle color onHover)
 
 
-bezier : Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
-bezier model ( src, srcDir ) ( ref, refDir ) lineStyle color label onHover =
+bezier : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
+bezier model cardinalities ( src, srcDir ) ( ref, refDir ) lineStyle color label onHover =
     buildSvg { src = src, ref = ref, label = label, padding = 50 }
-        (\origin -> drawCurve model ( src |> Position.moveCanvas origin, srcDir ) ( ref |> Position.moveCanvas origin, refDir ) lineStyle color onHover)
+        (\origin -> drawCurve model cardinalities ( src |> Position.moveCanvas origin, srcDir ) ( ref |> Position.moveCanvas origin, refDir ) lineStyle color onHover)
 
 
-steps : Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
-steps model ( src, srcDir ) ( ref, refDir ) lineStyle color label onHover =
+steps : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> msg) -> Svg msg
+steps model cardinalities ( src, srcDir ) ( ref, refDir ) lineStyle color label onHover =
     buildSvg { src = src, ref = ref, label = label, padding = 50 }
-        (\origin -> drawSteps model ( src |> Position.moveCanvas origin, srcDir ) ( ref |> Position.moveCanvas origin, refDir ) lineStyle color onHover)
+        (\origin -> drawSteps model cardinalities ( src |> Position.moveCanvas origin, srcDir ) ( ref |> Position.moveCanvas origin, refDir ) lineStyle color onHover)
 
 
 type alias SvgParams =
@@ -100,8 +107,8 @@ buildSvg { src, ref, label, padding } svgContent =
         (text label :: svgContent (Position.zero |> Position.diff origin))
 
 
-drawLine : Model -> Position.Canvas -> Position.Canvas -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
-drawLine model pos1 pos2 lineStyle color onHover =
+drawLine : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
+drawLine model cardinalities ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
     let
         ( p1, p2 ) =
             ( pos1 |> Position.extractCanvas, pos2 |> Position.extractCanvas )
@@ -117,11 +124,13 @@ drawLine model pos1 pos2 lineStyle color onHover =
             ++ Bool.cond model.hover [ onMouseEnter (onHover True), onMouseLeave (onHover False) ] []
         )
         []
+    , drawSrcGlyph cardinalities.src p1 dir1 lineStyle color
+    , drawRefGlyph cardinalities.ref p2 dir2 lineStyle color
     ]
 
 
-drawCurve : Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
-drawCurve model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
+drawCurve : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
+drawCurve model cardinalities ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
     let
         ( p1, p2 ) =
             ( pos1 |> Position.extractCanvas, pos2 |> Position.extractCanvas )
@@ -132,14 +141,8 @@ drawCurve model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
 
         path : List String
         path =
-            [ moveTo p1
-            , lineTo (p1 |> add arrowSize dir1)
-            , moveTo (p1 |> Position.move { dx = 0, dy = -(arrowSize / 2) })
-            , lineTo (p1 |> add arrowSize dir1)
-            , moveTo (p1 |> Position.move { dx = 0, dy = arrowSize / 2 })
-            , lineTo (p1 |> add arrowSize dir1)
-            , moveTo (p1 |> add arrowSize dir1)
-            , curveTo (p1 |> add (arrowSize + strength) dir1) (p2 |> add strength dir2) p2
+            [ moveTo (srcConnection cardinalities.src p1 dir1)
+            , curveTo (srcConnection cardinalities.src p1 dir1 |> add strength dir1) (p2 |> add strength dir2) p2
             ]
 
         hoverAttrs : List (Attribute msg)
@@ -158,12 +161,13 @@ drawCurve model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
             ++ hoverAttrs
         )
         []
-    , circle (p2 |> add 2 dir2) 2.5 [ class (color |> Maybe.mapOrElse (\c -> fill_500 c) "fill-default-400") ]
+    , drawSrcGlyph cardinalities.src p1 dir1 lineStyle color
+    , drawRefGlyph cardinalities.ref p2 dir2 lineStyle color
     ]
 
 
-drawSteps : Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
-drawSteps model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
+drawSteps : Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> (Bool -> msg) -> List (Svg msg)
+drawSteps model cardinalities ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
     let
         ( p1, p2 ) =
             ( pos1 |> Position.extractCanvas, pos2 |> Position.extractCanvas )
@@ -216,11 +220,7 @@ drawSteps model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
 
         path : List String
         path =
-            [ moveTo (p1 |> Position.move { dx = 0, dy = -(arrowSize / 2) })
-            , lineTo (p1 |> add arrowSize dir1)
-            , moveTo (p1 |> Position.move { dx = 0, dy = arrowSize / 2 })
-            , lineTo (p1 |> add arrowSize dir1)
-            , moveTo p1
+            [ moveTo (srcConnection cardinalities.src p1 dir1)
             , lineTo break1a
             , curveTo break1a break1 break1b
             , lineTo break2a
@@ -244,8 +244,58 @@ drawSteps model ( pos1, dir1 ) ( pos2, dir2 ) lineStyle color onHover =
             ++ hoverAttrs
         )
         []
-    , circle (p2 |> add 2 dir2) 2.5 [ class (color |> Maybe.mapOrElse (\c -> fill_500 c) "fill-default-400") ]
+    , drawSrcGlyph cardinalities.src p1 dir1 lineStyle color
+    , drawRefGlyph cardinalities.ref p2 dir2 lineStyle color
     ]
+
+
+srcConnection : RelationCardinality -> Position -> Direction -> Position
+srcConnection cardinality position direction =
+    case cardinality of
+        Many ->
+            position |> add arrowSize direction
+
+        _ ->
+            position
+
+
+drawSrcGlyph : RelationCardinality -> Position -> Direction -> List (Attribute msg) -> Maybe Color -> Svg msg
+drawSrcGlyph cardinality position direction lineStyle color =
+    let
+        path : List String
+        path =
+            case cardinality of
+                Many ->
+                    [ moveTo (position |> Position.move { dx = 0, dy = -(arrowSize / 2) })
+                    , lineTo (position |> add arrowSize direction)
+                    , moveTo position
+                    , lineTo (position |> add arrowSize direction)
+                    , moveTo (position |> Position.move { dx = 0, dy = arrowSize / 2 })
+                    , lineTo (position |> add arrowSize direction)
+                    ]
+
+                _ ->
+                    [ moveTo (position |> Position.move { dx = 0, dy = -(arrowSize / 2) })
+                    , lineTo (position |> Position.move { dx = 0, dy = arrowSize / 2 })
+                    ]
+    in
+    Svg.path
+        ([ d (path |> String.join " ")
+         , css [ "fill-transparent", color |> Maybe.mapOrElse (\c -> stroke_500 c ++ " stroke-2") "stroke-default-400 stroke-1" ]
+         ]
+            ++ lineStyle
+        )
+        []
+
+
+drawRefGlyph : RelationCardinality -> Position -> Direction -> List (Attribute msg) -> Maybe Color -> Svg msg
+drawRefGlyph cardinality position direction lineStyle color =
+    case cardinality of
+        Many ->
+            drawSrcGlyph Many position direction lineStyle color
+
+        _ ->
+            circle (position |> add 2 direction) 2.5 [ class (color |> Maybe.mapOrElse (\c -> fill_500 c) "fill-default-400") ]
 
 
 arrowSize : Float
@@ -282,11 +332,11 @@ doc =
             [ ( "straight", samples straight )
             , ( "bezier", samples bezier )
             , ( "steps", samples steps )
-            , ( "green", div [ class "h-12" ] [ straight { hover = True } ( Position.zeroCanvas, Right ) ( Position 50 50 |> Position.canvas, Left ) [] (Just Tw.green) "relation" (\_ -> logAction "hover relation") ] )
+            , ( "green", div [ class "h-12" ] [ straight { hover = True } { src = Many, ref = One } ( Position.zeroCanvas, Right ) ( Position 50 50 |> Position.canvas, Left ) [] (Just Tw.green) "relation" (\_ -> logAction "hover relation") ] )
             ]
 
 
-samples : (Model -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> Msg state) -> Svg (Msg state)) -> Html (Msg state)
+samples : (Model -> Cardinalities -> ( Position.Canvas, Direction ) -> ( Position.Canvas, Direction ) -> List (Attribute msg) -> Maybe Color -> String -> (Bool -> Msg state) -> Svg (Msg state)) -> Html (Msg state)
 samples displayRelation =
     let
         ( p0, p55 ) =
@@ -307,11 +357,11 @@ samples displayRelation =
         [ div [ class "flex flex-row h-12" ]
             ([ ( p0, p55 ), ( p05, p50 ) ]
                 |> List.concatMap (\( src, ref ) -> dirs |> List.map (\( dir1, dir2 ) -> ( ( src, dir1 ), ( ref, dir2 ) )))
-                |> List.map (\( src, ref ) -> div [ class "relative w-28" ] [ displayRelation { hover = True } src ref [] Nothing "relation" (\_ -> logAction "hover relation") ])
+                |> List.map (\( src, ref ) -> div [ class "relative w-28" ] [ displayRelation { hover = True } { src = Many, ref = One } src ref [] Nothing "relation" (\_ -> logAction "hover relation") ])
             )
         , div [ class "flex flex-row h-12 mt-6" ]
             ([ ( p55, p0 ), ( p50, p05 ) ]
                 |> List.concatMap (\( src, ref ) -> dirs |> List.map (\( dir1, dir2 ) -> ( ( src, dir1 ), ( ref, dir2 ) )))
-                |> List.map (\( src, ref ) -> div [ class "relative w-28" ] [ displayRelation { hover = True } src ref [] Nothing "relation" (\_ -> logAction "hover relation") ])
+                |> List.map (\( src, ref ) -> div [ class "relative w-28" ] [ displayRelation { hover = True } { src = One, ref = One } src ref [] Nothing "relation" (\_ -> logAction "hover relation") ])
             )
         ]

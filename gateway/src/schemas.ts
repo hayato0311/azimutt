@@ -39,6 +39,8 @@ export const sRelation = Type.Object({
     name: sRelationName,
     src: sColumnRefId,
     ref: sColumnRefId,
+    srcCardinality: Nullish(Type.Union([Type.Literal('0'), Type.Literal('1'), Type.Literal('n')])),
+    refCardinality: Nullish(Type.Union([Type.Literal('0'), Type.Literal('1'), Type.Literal('n')])),
 })
 export const sAzimuttColumnDbStats = Type.Object({
     nulls: Nullish(Type.Number()),

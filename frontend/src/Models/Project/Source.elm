@@ -234,7 +234,7 @@ decodeSource id name kind content tables relations types enabled fromSample crea
     , kind = kind
     , content = c
     , tables = tables
-    , relations = relations
+    , relations = relations |> List.map (Relation.inferCardinality tables)
     , types = types
     , enabled = enabled
     , fromSample = fromSample

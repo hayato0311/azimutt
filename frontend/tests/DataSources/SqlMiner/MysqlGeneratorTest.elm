@@ -188,4 +188,6 @@ buildRelation ( name, ( srcSchema, srcTable, srcColumn ), ( refSchema, refTable,
     , name = name
     , src = { table = ( srcSchema, srcTable ), column = Nel.from srcColumn }
     , ref = { table = ( refSchema, refTable ), column = Nel.from refColumn }
+    , srcCardinality = Nothing
+    , refCardinality = Nothing
     }

@@ -1,5 +1,6 @@
 import {describe, expect, test} from "@jest/globals";
 import {
+    databaseToSourceContent,
     LegacyLayout,
     LegacyOrganization,
     LegacyOrigin,
@@ -14,6 +15,7 @@ import {
     LegacyProjectType,
     LegacyProjectVisibility,
     LegacySource,
+    sourceToDatabase,
     Timestamp,
     Uuid,
 } from "../index";
@@ -71,6 +73,8 @@ describe('legacyProject', () => {
         name: 'group_user_id',
         src: {table: 'public.groups', column: 'user_id'},
         ref: {table: 'public.users', column: 'id'},
+        srcCardinality: '1',
+        refCardinality: '1',
         origins
     }
     const type: LegacyProjectType = {
@@ -170,6 +174,61 @@ describe('legacyProject', () => {
             const {name, ...invalid} = relation
             const res = LegacyProjectRelation.safeParse(invalid)
             expect(res.success).toEqual(false)
+        })
+        test('zod backward compatible without cardinality', () => {
+            const {srcCardinality, refCardinality, ...legacy} = relation
+            const res = LegacyProjectRelation.parse(legacy)
+            expect(res).toEqual(legacy)
+        })
+        test('zod rejects invalid cardinality', () => {
+            const res = LegacyProjectRelation.safeParse({...relation, srcCardinality: 'many'})
+            expect(res.success).toEqual(false)
+        })
+        test('zod remains strict with unknown keys', () => {
+            const res = LegacyProjectRelation.safeParse({...relation, cardinality: '1'})
+            expect(res.success).toEqual(false)
+        })
+        test('round-trips cardinality through source conversion', () => {
+            const database = sourceToDatabase(source)
+            expect(database.relations?.[0].src.cardinality).toEqual('1')
+            expect(database.relations?.[0].ref.cardinality).toEqual('1')
+            expect(databaseToSourceContent(database).relations[0]).toMatchObject({
+                srcCardinality: '1',
+                refCardinality: '1'
+            })
+        })
+        test('infers missing cardinality from a single-column unique', () => {
+            const groups: LegacyProjectTable = {
+                schema: 'public',
+                table: 'groups',
+                columns: [{name: 'user_id', type: 'uuid'}],
+                uniques: [{name: 'groups_user_id_key', columns: ['user_id']}]
+            }
+            const legacyRelation = {...relation, srcCardinality: undefined, refCardinality: undefined}
+            const database = sourceToDatabase({...source, tables: [...source.tables, groups], relations: [legacyRelation]})
+            expect(database.relations?.[0].src.cardinality).toEqual('1')
+        })
+        test('does not infer from a composite unique', () => {
+            const groups: LegacyProjectTable = {
+                schema: 'public',
+                table: 'groups',
+                columns: [{name: 'user_id', type: 'uuid'}, {name: 'tenant_id', type: 'uuid'}],
+                uniques: [{name: 'groups_tenant_user_key', columns: ['tenant_id', 'user_id']}]
+            }
+            const legacyRelation = {...relation, srcCardinality: undefined, refCardinality: undefined}
+            const database = sourceToDatabase({...source, tables: [...source.tables, groups], relations: [legacyRelation]})
+            expect(database.relations?.[0].src.cardinality).toBeUndefined()
+        })
+        test('infers missing cardinality from a single-column primary key', () => {
+            const groups: LegacyProjectTable = {
+                schema: 'public',
+                table: 'groups',
+                columns: [{name: 'user_id', type: 'uuid'}],
+                primaryKey: {name: 'groups_pkey', columns: ['user_id']}
+            }
+            const legacyRelation = {...relation, srcCardinality: undefined, refCardinality: undefined}
+            const database = sourceToDatabase({...source, tables: [...source.tables, groups], relations: [legacyRelation]})
+            expect(database.relations?.[0].src.cardinality).toEqual('1')
         })
     })
     describe('type', () => {

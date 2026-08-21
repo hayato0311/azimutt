@@ -9,6 +9,7 @@ import Libs.Tailwind exposing (Color)
 import Models.Area as Area
 import Models.Position as Position
 import Models.Project.ColumnPath as ColumnPath exposing (ColumnPath)
+import Models.Project.RelationCardinality exposing (RelationCardinality(..))
 import Models.Project.SchemaName exposing (SchemaName)
 import Models.RelationStyle as RelationStyle exposing (RelationStyle)
 import Models.Size as Size
@@ -75,7 +76,7 @@ viewRelation defaultSchema style conf srcTable refTable relation =
 
             else
                 (s.table |> Area.topRightCanvasGrid |> Position.moveCanvas { dx = 0, dy = deltaTop Conf.ui.table s.index s.table.collapsed })
-                    |> (\srcPos -> Relation.show RelationStyle.Straight model ( srcPos, Relation.Left ) ( srcPos |> Position.moveCanvas { dx = 20, dy = 0 }, Relation.Right ) (buildStyle relation.src.nullable) color label onHover)
+                    |> (\srcPos -> Relation.show RelationStyle.Straight model (cardinalities relation) ( srcPos, Relation.Left ) ( srcPos |> Position.moveCanvas { dx = 20, dy = 0 }, Relation.Right ) (buildStyle relation.src.nullable) color label onHover)
 
         ( Nothing, Just r ) ->
             if r.table.collapsed then
@@ -83,7 +84,7 @@ viewRelation defaultSchema style conf srcTable refTable relation =
 
             else
                 (r.table |> Area.topLeftCanvasGrid |> Position.moveCanvas { dx = 0, dy = deltaTop Conf.ui.table r.index r.table.collapsed })
-                    |> (\refPos -> Relation.show RelationStyle.Straight model ( refPos |> Position.moveCanvas { dx = -20, dy = 0 }, Relation.Left ) ( refPos, Relation.Right ) (buildStyle relation.src.nullable) color label onHover)
+                    |> (\refPos -> Relation.show RelationStyle.Straight model (cardinalities relation) ( refPos |> Position.moveCanvas { dx = -20, dy = 0 }, Relation.Left ) ( refPos, Relation.Right ) (buildStyle relation.src.nullable) color label onHover)
 
         ( Just s, Just r ) ->
             let
@@ -96,7 +97,7 @@ viewRelation defaultSchema style conf srcTable refTable relation =
                 ( srcY, refY ) =
                     ( sPos.top + deltaTop Conf.ui.table s.index s.table.collapsed, rPos.top + deltaTop Conf.ui.table r.index r.table.collapsed )
             in
-            Relation.show style model ( Position.canvas { left = srcX, top = srcY }, srcDir ) ( Position.canvas { left = refX, top = refY }, refDir ) (buildStyle relation.src.nullable) color label onHover
+            Relation.show style model (cardinalities relation) ( Position.canvas { left = srcX, top = srcY }, srcDir ) ( Position.canvas { left = refX, top = refY }, refDir ) (buildStyle relation.src.nullable) color label onHover
 
 
 viewVirtualRelation : RelationStyle -> ( ( Maybe ColumnInfo, ErdColumn ), Position.Canvas ) -> Svg Msg
@@ -113,6 +114,7 @@ viewVirtualRelation style ( ( maybeProps, column ), position ) =
             in
             Relation.show style
                 { hover = False }
+                { src = Many, ref = One }
                 ( props.table.position |> Position.offGrid |> Position.moveCanvas { dx = B.cond isRight tableSize.width 0, dy = deltaTop Conf.ui.table props.index props.table.collapsed }, B.cond isRight Relation.Right Relation.Left )
                 ( position, B.cond isRight Relation.Left Relation.Right )
                 (buildStyle column.nullable)
@@ -127,6 +129,13 @@ viewVirtualRelation style ( ( maybeProps, column ), position ) =
 viewEmptyRelation : Svg msg
 viewEmptyRelation =
     svg [ class "az-empty-relation", width "0px", height "0px" ] []
+
+
+cardinalities : ErdRelation -> Relation.Cardinalities
+cardinalities relation =
+    { src = relation.srcCardinality |> Maybe.withDefault Many
+    , ref = relation.refCardinality |> Maybe.withDefault One
+    }
 
 
 buildStyle : Bool -> List (Attribute msg)

@@ -24,7 +24,7 @@ import {
     uniqueFromLegacy
 } from "./legacyDatabase";
 import {zodParse} from "../zod";
-import {Attribute, Check, Database, DatabaseKind, Entity, Index, PrimaryKey, Relation, Type} from "../database";
+import {Attribute, Check, Database, DatabaseKind, Entity, Index, PrimaryKey, Relation, RelationCardinality, Type} from "../database";
 import {parseDatabaseUrl} from "../databaseUrl";
 import {attributeValueToString} from "../databaseUtils";
 import {OpenAIKey, OpenAIModel} from "../llm";
@@ -306,6 +306,8 @@ export interface LegacyProjectRelation {
     name: LegacyRelationName
     src: LegacyProjectColumnRef
     ref: LegacyProjectColumnRef
+    srcCardinality?: RelationCardinality
+    refCardinality?: RelationCardinality
     origins?: LegacyOrigin[]
 }
 
@@ -313,6 +315,8 @@ export const LegacyProjectRelation = z.object({
     name: LegacyRelationName,
     src: LegacyProjectColumnRef,
     ref: LegacyProjectColumnRef,
+    srcCardinality: RelationCardinality.optional(),
+    refCardinality: RelationCardinality.optional(),
     origins: LegacyOrigin.array().optional()
 }).strict()
 
@@ -906,13 +910,25 @@ export function legacyComputeStats(p: LegacyProjectJson): LegacyProjectStats {
 export function sourceToDatabase(s: LegacySource): Database {
     return removeEmpty({
         entities: s.tables.map(projectTableToEntity),
-        relations: s.relations.map(relationFromLegacy),
+        relations: s.relations.map(r => relationFromLegacy(inferProjectRelationCardinality(s.tables, r))),
         types: s.types?.map(projectTypeFromLegacy),
         stats: removeUndefined({
             name: s.name,
             kind: s.kind.kind === 'DatabaseConnection' ? (s.kind.engine ? s.kind.engine : s.kind.url ? parseDatabaseUrl(s.kind.url).kind : undefined) : undefined
         })
     })
+}
+
+function inferProjectRelationCardinality(tables: LegacyProjectTable[], relation: LegacyProjectRelation): LegacyProjectRelation {
+    if (relation.srcCardinality !== undefined) {
+        return relation
+    }
+
+    const srcTable = tables.find(table => `${table.schema}.${table.table}` === relation.src.table)
+    const isSingleColumnUnique =
+        srcTable?.uniques?.some(unique => unique.columns.length === 1 && unique.columns[0] === relation.src.column) ||
+        (srcTable?.primaryKey?.columns.length === 1 && srcTable.primaryKey.columns[0] === relation.src.column)
+    return isSingleColumnUnique ? {...relation, srcCardinality: '1'} : relation
 }
 
 export function databaseToSourceContent(db: Database): LegacySourceContent {
@@ -1035,6 +1051,8 @@ export function relationToProjectRelation(r: Relation): LegacyProjectRelation[] 
             name: r.name || '',
             src: { table: `${r.src.schema}.${r.src.entity}`, column: src.join(':') },
             ref: { table: `${r.ref.schema}.${r.ref.entity}`, column: ref.join(':') },
+            srcCardinality: r.src.cardinality,
+            refCardinality: r.ref.cardinality,
             origins: undefined,
         })
     })

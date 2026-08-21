@@ -7,6 +7,7 @@ import Libs.Maybe as Maybe
 import Libs.Models.Position exposing (Position)
 import Libs.Tailwind exposing (Color)
 import Models.Position as Position
+import Models.Project.RelationCardinality exposing (RelationCardinality(..))
 import Models.Project.TableRow exposing (TableRow, TableRowColumn)
 import Models.RelationStyle exposing (RelationStyle)
 import PagesComponents.Organization_.Project_.Models exposing (Msg(..))
@@ -36,4 +37,4 @@ viewRelationRow conf style hoverRow rel =
         color =
             hoverRow |> Maybe.filter (\h -> h == ( rel.src.row.id, Just rel.src.column.path ) || h == ( rel.ref.row.id, Just rel.ref.column.path )) |> Maybe.map (\_ -> rel.src.color)
     in
-    Relation.show style model ( Position.canvas { left = srcX, top = srcY }, srcDir ) ( Position.canvas { left = refX, top = refY }, refDir ) [ strokeDasharray "2" ] color rel.id (\_ -> Noop "hover-relation-row")
+    Relation.show style model { src = Many, ref = One } ( Position.canvas { left = srcX, top = srcY }, srcDir ) ( Position.canvas { left = refX, top = refY }, refDir ) [ strokeDasharray "2" ] color rel.id (\_ -> Noop "hover-relation-row")
