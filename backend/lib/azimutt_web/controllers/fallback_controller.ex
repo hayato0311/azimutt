@@ -4,6 +4,7 @@ defmodule AzimuttWeb.FallbackController do
   See `Phoenix.Controller.action_fallback/1` for more details.
   """
   use AzimuttWeb, :controller
+  import AzimuttWeb.Utils.ControllerHelpers, only: [to_message: 1]
 
   # This clause handles errors returned by Ecto's insert/update/delete.
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
@@ -49,13 +50,14 @@ defmodule AzimuttWeb.FallbackController do
     |> render("410.html", message: "Gone")
   end
 
-  def call(conn, {:error, message}) do
+  # `to_message` as the error can be any shape (ex: `{:stripe, message}`) and the 500 template can only render a string
+  def call(conn, {:error, err}) do
     conn
     |> put_status(:internal_server_error)
     |> put_view(AzimuttWeb.ErrorView)
     |> put_layout({AzimuttWeb.LayoutView, "empty.html"})
     |> put_root_layout({AzimuttWeb.LayoutView, "root_hfull.html"})
-    |> render("500.html", message: message)
+    |> render("500.html", message: to_message(err))
   end
 
   def call(_conn, {:ok, response}) do

@@ -56,13 +56,9 @@ defmodule Azimutt.Organizations do
     |> Organization.create_personal_changeset(current_user)
     |> Ecto.Changeset.put_assoc(:members, [OrganizationMember.creator_changeset(current_user)])
     |> Repo.insert()
-    |> Result.flat_map(fn orga ->
-      if StripeSrv.stripe_configured?() do
-        create_stripe_customer(orga, current_user)
-      else
-        {:ok, orga}
-      end
-    end)
+    # no transaction here: this always runs inside the `register_user` Ecto.Multi, which already rolls back on error.
+    # a nested `Repo.transaction` would make `Repo.rollback` unwind the whole Multi and break its error handling
+    |> Result.flat_map(fn orga -> create_stripe_customer_if_configured(orga, current_user) end)
   end
 
   def create_non_personal_organization(attrs, %User{} = current_user) do
@@ -70,14 +66,30 @@ defmodule Azimutt.Organizations do
     |> Repo.preload(:members)
     |> Organization.create_non_personal_changeset(current_user, attrs)
     |> Ecto.Changeset.put_assoc(:members, [OrganizationMember.creator_changeset(current_user)])
-    |> Repo.insert()
-    |> Result.flat_map(fn orga ->
-      if StripeSrv.stripe_configured?() do
-        create_stripe_customer(orga, current_user)
+    |> insert_with_stripe_customer(current_user)
+  end
+
+  # create the organization and its Stripe customer in a single transaction:
+  # we don't want organizations without a Stripe customer, so a Stripe failure rolls back the organization creation
+  defp insert_with_stripe_customer(%Ecto.Changeset{} = changeset, %User{} = current_user) do
+    Repo.transaction(fn ->
+      with {:ok, orga} <- Repo.insert(changeset),
+           {:ok, orga} <- create_stripe_customer_if_configured(orga, current_user) do
+        orga
       else
-        {:ok, orga}
+        {:error, err} -> Repo.rollback(err)
       end
     end)
+  end
+
+  # the error is tagged `{:stripe, message}` so callers can tell it apart from a changeset error and show a clear message
+  defp create_stripe_customer_if_configured(%Organization{} = orga, %User{} = current_user) do
+    if StripeSrv.stripe_configured?() do
+      create_stripe_customer(orga, current_user)
+      |> Result.map_error(fn err -> {:stripe, StripeSrv.report_error("Can't create Stripe customer for organization #{orga.name} (#{orga.id})", err)} end)
+    else
+      {:ok, orga}
+    end
   end
 
   def create_stripe_customer(%Organization{} = organization, %User{} = current_user) do

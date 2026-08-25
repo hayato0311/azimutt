@@ -5,17 +5,21 @@ defmodule Azimutt.Services.StripeSrv do
   def create_customer(organization_id, name, email, description, is_personal, creator_name, creator_email) do
     if stripe_configured?() do
       # https://stripe.com/docs/api/customers/create
-      Stripe.Customer.create(%{
-        name: name,
-        email: email,
-        description: description,
-        metadata: %{
-          organization_id: organization_id,
-          is_personal: is_personal,
-          created_by: creator_name,
-          created_by_email: creator_email
-        }
-      })
+      Stripe.Customer.create(
+        %{
+          name: name,
+          email: email,
+          description: description,
+          metadata: %{
+            organization_id: organization_id,
+            is_personal: is_personal,
+            created_by: creator_name,
+            created_by_email: creator_email
+          }
+        },
+        # without it stripity_stripe generates a random one on each call, so its retries and ours would duplicate the customer
+        idempotency_key: "create_customer_#{organization_id}"
+      )
     else
       {:error, "Stripe not configured"}
     end
@@ -138,5 +142,37 @@ defmodule Azimutt.Services.StripeSrv do
     "https://dashboard.stripe.com/customers/#{customer_id}"
   end
 
-  def stripe_configured?, do: !!Application.get_env(:stripity_stripe, :api_key)
+  # a blank api key is not a configured Stripe (Stripe would answer 401 "You did not provide an API key")
+  def stripe_configured? do
+    case Application.get_env(:stripity_stripe, :api_key) do
+      key when is_binary(key) -> String.trim(key) != ""
+      _ -> false
+    end
+  end
+
+  # Stripe `:message` is documented as "should not be shown to your users", only `:user_message` is meant for them
+  @generic_user_message "Our payment provider had an issue"
+
+  @doc "Technical message for logs & Sentry, may expose internal details (ex: the masked api key), never show it to users."
+  def error_message(%Stripe.Error{} = err), do: "Stripe error: #{err.message} (#{err.extra[:http_status] || err.code})"
+  def error_message(err) when is_binary(err), do: "Stripe error: #{err}"
+  def error_message(err), do: "Stripe error: #{inspect(err)}"
+
+  @doc "Message safe to show to users, Stripe only provides one for actionable errors (ex: card declined)."
+  def user_error_message(%Stripe.Error{user_message: message}) when is_binary(message) do
+    case message |> String.trim() |> String.trim_trailing(".") do
+      "" -> @generic_user_message
+      trimmed -> trimmed
+    end
+  end
+
+  def user_error_message(_err), do: @generic_user_message
+
+  @doc "Log a Stripe failure (and report it to Sentry when enabled), returns the user facing message."
+  def report_error(context, err) do
+    message = error_message(err)
+    Logger.error("#{context}: #{message}")
+    if Azimutt.config(:sentry), do: Sentry.capture_message("#{context}: #{message}", extra: %{error: inspect(err)})
+    user_error_message(err)
+  end
 end

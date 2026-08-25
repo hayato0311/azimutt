@@ -16,6 +16,14 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+
+# like `System.fetch_env!` but also fails on blank values
+fetch_env_not_blank = fn name ->
+  value = System.get_env(name) || raise "environment variable #{name} is missing"
+  trimmed = String.trim(value)
+  if trimmed == "", do: raise("environment variable #{name} is blank"), else: trimmed
+end
+
 host = System.fetch_env!("PHX_HOST")
 port = String.to_integer(System.fetch_env!("PORT"))
 global_organization = System.get_env("GLOBAL_ORGANIZATION")
@@ -270,18 +278,34 @@ end
 if System.get_env("STRIPE") == "true" do
   IO.puts("Setup Stripe")
 
+  # secret (sk_) or restricted (rk_) keys, live or test, publishable keys (pk_) can't be used server side
+  stripe_api_key = fetch_env_not_blank.("STRIPE_API_KEY")
+  stripe_signing_secret = fetch_env_not_blank.("STRIPE_WEBHOOK_SIGNING_SECRET")
+
+  if !String.match?(stripe_api_key, ~r/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/) do
+    raise "environment variable STRIPE_API_KEY is not a valid Stripe secret key (expected sk_live_*, sk_test_*, rk_live_* or rk_test_*), got: #{String.slice(stripe_api_key, 0..10)}***"
+  end
+
+  if !String.starts_with?(stripe_signing_secret, "whsec_") do
+    raise "environment variable STRIPE_WEBHOOK_SIGNING_SECRET is not a valid Stripe webhook signing secret (expected whsec_*), got: #{String.slice(stripe_signing_secret, 0..10)}***"
+  end
+
   config :azimutt,
     stripe: true,
-    stripe_price_solo_monthly: System.fetch_env!("STRIPE_PRICE_SOLO_MONTHLY") |> String.split(","),
-    stripe_price_solo_yearly: System.fetch_env!("STRIPE_PRICE_SOLO_YEARLY") |> String.split(","),
-    stripe_price_team_monthly: System.fetch_env!("STRIPE_PRICE_TEAM_MONTHLY") |> String.split(","),
-    stripe_price_team_yearly: System.fetch_env!("STRIPE_PRICE_TEAM_YEARLY") |> String.split(","),
-    stripe_product_enterprise: System.fetch_env!("STRIPE_PRODUCT_ENTERPRISE"),
-    stripe_price_pro_monthly: System.fetch_env!("STRIPE_PRICE_PRO_MONTHLY")
+    stripe_price_solo_monthly: fetch_env_not_blank.("STRIPE_PRICE_SOLO_MONTHLY") |> String.split(","),
+    stripe_price_solo_yearly: fetch_env_not_blank.("STRIPE_PRICE_SOLO_YEARLY") |> String.split(","),
+    stripe_price_team_monthly: fetch_env_not_blank.("STRIPE_PRICE_TEAM_MONTHLY") |> String.split(","),
+    stripe_price_team_yearly: fetch_env_not_blank.("STRIPE_PRICE_TEAM_YEARLY") |> String.split(","),
+    stripe_product_enterprise: fetch_env_not_blank.("STRIPE_PRODUCT_ENTERPRISE"),
+    stripe_price_pro_monthly: fetch_env_not_blank.("STRIPE_PRICE_PRO_MONTHLY")
 
   config :stripity_stripe,
-    api_key: System.fetch_env!("STRIPE_API_KEY"),
-    signing_secret: System.fetch_env!("STRIPE_WEBHOOK_SIGNING_SECRET")
+    api_key: stripe_api_key,
+    signing_secret: stripe_signing_secret,
+    # Stripe calls run inside the organization creation transaction, holding a db connection for their whole duration.
+    # hackney defaults (8s connect, 5s receive) with 4 attempts could hold it ~1min, this caps it to ~17s.
+    hackney_opts: [connect_timeout: 3_000, recv_timeout: 5_000],
+    retry_config: [max_attempts: 1, base_backoff: 500, max_backoff: 2_000]
 end
 
 if System.get_env("CLEVER_CLOUD") == "true" do

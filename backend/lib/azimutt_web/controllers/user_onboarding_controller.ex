@@ -1,5 +1,6 @@
 defmodule AzimuttWeb.UserOnboardingController do
   use AzimuttWeb, :controller
+  import AzimuttWeb.Utils.ControllerHelpers, only: [to_message: 1]
   alias Azimutt.Accounts
   alias Azimutt.Tracking
   alias Azimutt.Utils.Result
@@ -84,7 +85,16 @@ defmodule AzimuttWeb.UserOnboardingController do
          {:ok, p} <- Accounts.get_or_create_profile(current_user) do
       Accounts.set_profile(p, profile_params, now, step.fields)
       |> Result.fold(
-        fn err -> conn |> render("#{step.id}.html", changeset: err, profile: p) end,
+        fn
+          %Ecto.Changeset{} = changeset ->
+            conn |> render("#{step.id}.html", changeset: changeset, profile: p)
+
+          # anything else (ex: the team organization Stripe customer failing) has no changeset to render errors in
+          err ->
+            conn
+            |> put_flash(:error, "#{to_message(err)}. Your team organization could not be created, please retry in a few minutes.")
+            |> render("#{step.id}.html", changeset: Accounts.change_profile(p, now, step.fields), profile: p)
+        end,
         fn _ ->
           next = @steps |> Enum.drop_while(fn s -> s.id != id end) |> Enum.at(1)
           p.user |> Accounts.set_onboarding(next.id |> Atom.to_string(), now)
