@@ -1,4 +1,4 @@
-module PagesComponents.Organization_.Project_.Updates.Canvas exposing (applyAutoLayout, computeFit, fitCanvas, handleWheel, launchAutoLayout, performZoom, squashViewHistory, zoomCanvas)
+module PagesComponents.Organization_.Project_.Updates.Canvas exposing (applyAutoLayout, computeFit, fitCanvas, handleWheel, launchAutoLayout, performZoom, squashViewHistory, wheelZoomStep, zoomCanvas)
 
 import Conf
 import Dict exposing (Dict)
@@ -39,11 +39,22 @@ import Time
 handleWheel : WheelEvent -> ErdProps -> CanvasProps -> ( CanvasProps, Extra Msg )
 handleWheel event erdElem canvas =
     if event.ctrl then
-        canvas |> performZoom erdElem (-event.delta.dy * Conf.canvas.zoom.speed * canvas.zoom) event.clientPos
+        canvas |> performZoom erdElem (wheelZoomStep event.delta.dy canvas.zoom) event.clientPos
 
     else
         { canvas | position = canvas.position |> Position.moveDiagram (event.delta |> Delta.negate |> Delta.adjust canvas.zoom) }
             |> (\new -> ( new, Extra.history ( SetView_ canvas, SetView_ new ) ))
+
+
+wheelZoomStep : Float -> ZoomLevel -> Float
+wheelZoomStep dy zoom =
+    -- the cap keeps a mouse wheel notch usable with the trackpad tuned speed, see Conf.canvas.zoom
+    let
+        maxStep : Float
+        maxStep =
+            zoom * Conf.canvas.zoom.maxStepRatio
+    in
+    (-dy * Conf.canvas.zoom.speed * zoom) |> clamp -maxStep maxStep
 
 
 zoomCanvas : Float -> ErdProps -> CanvasProps -> ( CanvasProps, Extra Msg )

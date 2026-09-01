@@ -10,7 +10,7 @@ import Models.ErdProps exposing (ErdProps)
 import Models.Position as Position
 import Models.Project.CanvasProps exposing (CanvasProps)
 import Models.Size as Size
-import PagesComponents.Organization_.Project_.Updates.Canvas exposing (computeFit, performZoom)
+import PagesComponents.Organization_.Project_.Updates.Canvas exposing (computeFit, performZoom, wheelZoomStep)
 import Services.Lenses exposing (mapPosition)
 import Test exposing (Test, describe, fuzz, test)
 import TestHelpers.Fuzzers exposing (positionViewport)
@@ -27,6 +27,14 @@ suite =
             , fuzz (Fuzz.pair positionViewport canvasProps) "no change" (\( pos, props ) -> props |> performZoom erdElem 0 pos |> Tuple.first |> Expect.equal (props |> mapPosition Position.roundDiagram))
 
             --, fuzz (tuple3 ( float, positionViewport, canvasProps )) "round trip" (\( delta, pos, props ) -> props |> performZoom erdElem delta pos |> performZoom erdElem -delta pos |> Expect.equal (props |> mapPosition Position.roundCanvas))
+            ]
+        , describe "wheelZoomStep"
+            [ test "zoom in on small trackpad delta" (\_ -> wheelZoomStep -4 1 |> Expect.within (Expect.Absolute 0.0001) 0.048)
+            , test "zoom out on small trackpad delta" (\_ -> wheelZoomStep 4 1 |> Expect.within (Expect.Absolute 0.0001) -0.048)
+            , test "cap a large wheel delta" (\_ -> wheelZoomStep -100 1 |> Expect.within (Expect.Absolute 0.0001) 0.25)
+            , test "scale the cap with the current zoom" (\_ -> wheelZoomStep -100 0.5 |> Expect.within (Expect.Absolute 0.0001) 0.125)
+            , test "no zoom without delta" (\_ -> wheelZoomStep 0 1 |> Expect.within (Expect.Absolute 0.0001) 0)
+            , fuzz (Fuzz.pair (Fuzz.floatRange -1000 1000) (Fuzz.floatRange 0.1 5)) "stay within the cap" (\( dy, zoom ) -> wheelZoomStep dy zoom |> abs |> Expect.atMost (zoom * 0.25))
             ]
         , describe "computeFit"
             [ test "no change" (\_ -> computeFit (inArea Position.zero (Size 50 50)) 0 (inArea Position.zero (Size 50 50)) 1 |> Expect.equal ( 1, Delta.zero ))
