@@ -73,12 +73,14 @@ github =
 
 
 canvas :
-    { zoom : { min : ZoomLevel, max : ZoomLevel, speed : Float }
+    { zoom : { min : ZoomLevel, max : ZoomLevel, speed : Float, maxStepRatio : Float }
     , zIndex : { tables : Int }
     , grid : Int
     }
 canvas =
-    { zoom = { min = 0.001, max = 5, speed = 0.001 }
+    -- trackpad pinch sends many small deltas while mouse wheels send few large ones,
+    -- so `speed` is tuned for the trackpad and `maxStepRatio` caps a single wheel notch
+    { zoom = { min = 0.001, max = 5, speed = 0.012, maxStepRatio = 0.25 }
     , zIndex = { tables = 10 }
     , grid = 10
     }

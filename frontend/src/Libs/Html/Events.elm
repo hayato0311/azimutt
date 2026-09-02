@@ -128,10 +128,22 @@ wheelDecoder platform =
         Position.decodeViewport
         Position.decodeDocument
         Delta.decodeEvent
-        (Decode.field (B.cond (platform == Platform.Mac) "metaKey" "ctrlKey") Decode.bool)
+        (zoomModifierDecoder platform)
         (Decode.field "altKey" Decode.bool)
         (Decode.field "shiftKey" Decode.bool)
         (Decode.field "metaKey" Decode.bool)
+
+
+zoomModifierDecoder : Platform -> Decode.Decoder Bool
+zoomModifierDecoder platform =
+    case platform of
+        Platform.Mac ->
+            Decode.map2 (||)
+                (Decode.field "metaKey" Decode.bool)
+                (Decode.field "ctrlKey" Decode.bool)
+
+        Platform.PC ->
+            Decode.field "ctrlKey" Decode.bool
 
 
 buttonFromId : Int -> Button
