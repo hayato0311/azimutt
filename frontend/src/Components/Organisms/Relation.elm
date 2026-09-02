@@ -262,6 +262,10 @@ srcConnection cardinality position direction =
 drawSrcGlyph : RelationCardinality -> Position -> Direction -> List (Attribute msg) -> Maybe Color -> Svg msg
 drawSrcGlyph cardinality position direction lineStyle color =
     let
+        bar : Position
+        bar =
+            position |> add glyphGap direction
+
         path : List String
         path =
             case cardinality of
@@ -275,8 +279,8 @@ drawSrcGlyph cardinality position direction lineStyle color =
                     ]
 
                 _ ->
-                    [ moveTo (position |> Position.move { dx = 0, dy = -(arrowSize / 2) })
-                    , lineTo (position |> Position.move { dx = 0, dy = arrowSize / 2 })
+                    [ moveTo (bar |> Position.move { dx = 0, dy = -(arrowSize / 2) })
+                    , lineTo (bar |> Position.move { dx = 0, dy = arrowSize / 2 })
                     ]
     in
     Svg.path
@@ -295,12 +299,18 @@ drawRefGlyph cardinality position direction lineStyle color =
             drawSrcGlyph Many position direction lineStyle color
 
         _ ->
-            circle (position |> add 2 direction) 2.5 [ class (color |> Maybe.mapOrElse (\c -> fill_500 c) "fill-default-400") ]
+            circle (position |> add glyphGap direction) 2.5 [ class (color |> Maybe.mapOrElse (\c -> fill_500 c) "fill-default-400") ]
 
 
 arrowSize : Float
 arrowSize =
     10
+
+
+glyphGap : Float
+glyphGap =
+    -- keeps the "one" glyphs off the table border, the line still reaches the table
+    6
 
 
 add : Float -> Direction -> Position -> Position
