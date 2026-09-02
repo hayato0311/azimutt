@@ -39,14 +39,15 @@ defmodule AzimuttWeb.Services.BillingSrv do
         Tracking.subscribe_start(user, organization, plan, freq, price, quantity)
         redirect(conn, external: session.url)
 
-      {:error, %Stripe.Error{} = stripe_error} ->
-        Logger.error("Cannot create Stripe Session for organization #{organization.id}: #{stripe_error.message}")
-        Tracking.subscribe_error(user, organization, plan, freq, price, quantity, stripe_error)
+      # not only `%Stripe.Error{}`: `create_stripe_customer` can also fail with a plain message
+      {:error, err} ->
+        message = StripeSrv.report_error("Cannot create Stripe Session for organization #{organization.id}", err)
+        if match?(%Stripe.Error{}, err), do: Tracking.subscribe_error(user, organization, plan, freq, price, quantity, err)
 
         conn
         |> put_flash(
           :error,
-          "Sorry something went wrong (#{stripe_error.message}), please contact us at #{Azimutt.config(:support_email)}."
+          "Sorry something went wrong (#{message}), please contact us at #{Azimutt.config(:support_email)}."
         )
         |> redirect(to: error_path)
     end

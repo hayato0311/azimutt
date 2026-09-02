@@ -12,3 +12,6 @@ addon-clevercloud.json
 /.vscode
 charts/azimutt/charts/
 charts/azimutt/Chart.lock
+
+# local docker compose customization
+docker-compose.override.yml

@@ -31,7 +31,17 @@ defmodule AzimuttWeb.OrganizationController do
       {:error, %Ecto.Changeset{} = changeset} ->
         conn
         |> put_root_layout({AzimuttWeb.LayoutView, "root_organization_new.html"})
-        |> render("new.html", changeset: changeset)
+        |> render("new.html", changeset: changeset, logo: organization_params["logo"] || Faker.Avatar.image_url())
+
+      # the Stripe customer failed, the organization creation was rolled back, tell the user instead of crashing
+      {:error, {:stripe, message}} ->
+        conn
+        |> put_flash(:error, "#{message}. Your organization billing could not be set up, please retry in a few minutes or contact #{Azimutt.config(:support_email)} if it persists.")
+        |> put_root_layout({AzimuttWeb.LayoutView, "root_organization_new.html"})
+        |> render("new.html",
+          changeset: Organization.create_non_personal_changeset(%Organization{}, current_user, organization_params),
+          logo: organization_params["logo"] || Faker.Avatar.image_url()
+        )
     end
   end
 

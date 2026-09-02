@@ -6,6 +6,7 @@ defmodule AzimuttWeb.UserRegistrationController do
   alias Azimutt.Utils.Mapx
   alias Azimutt.Utils.Result
   alias AzimuttWeb.UserAuth
+  import AzimuttWeb.Utils.ControllerHelpers, only: [to_message: 1]
   action_fallback AzimuttWeb.FallbackController
 
   def new(conn, _params) do
@@ -41,6 +42,12 @@ defmodule AzimuttWeb.UserRegistrationController do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn |> render("new.html", changeset: changeset)
+
+      # anything else (organization creation, mostly Stripe, or recaptcha): no account has been created
+      {:error, err} ->
+        conn
+        |> put_flash(:error, "#{to_message(err)}. Your account was not created, please retry in a few minutes or contact #{Azimutt.config(:support_email)} if it persists.")
+        |> render("new.html", changeset: Accounts.change_user_registration(attrs, %User{}, now))
     end
   end
 end

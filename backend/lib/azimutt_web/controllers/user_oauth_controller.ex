@@ -5,6 +5,7 @@ defmodule AzimuttWeb.UserOauthController do
   alias Azimutt.Accounts
   alias Azimutt.Utils.Result
   alias AzimuttWeb.UserAuth
+  import AzimuttWeb.Utils.ControllerHelpers, only: [to_message: 1]
   action_fallback AzimuttWeb.FallbackController
 
   # credo:disable-for-lines:4 Credo.Check.Readability.MaxLineLength
@@ -55,14 +56,29 @@ defmodule AzimuttWeb.UserOauthController do
         if !user.confirmed_at, do: Accounts.send_email_confirmation(user, &Routes.user_confirmation_url(conn, :confirm, &1))
       end)
     end)
-    |> Result.map(fn user -> UserAuth.login_user_and_redirect(conn, user, provider) end)
-    |> Result.or_else(callback(conn, %{}))
+    |> case do
+      {:ok, user} ->
+        UserAuth.login_user_and_redirect(conn, user, provider)
+
+      # registration failed: show the actual reason instead of crashing (ex: Stripe customer creation failing)
+      {:error, err} ->
+        Logger.error("Can't register #{provider} user #{email_address}: #{inspect(err)}")
+        conn |> put_flash(:error, error_message(err)) |> redirect(to: Routes.website_path(conn, :index))
+    end
   end
 
   def callback(conn, params) do
     Logger.error("Unhandled auth callback: #{inspect(params)}")
     conn |> put_flash(:error, "Authentication failed") |> redirect(to: Routes.website_path(conn, :index))
   end
+
+  defp error_message({kind, message}) when kind in [:stripe, :organization],
+    do: "#{message}. Your account was not created, please retry in a few minutes or contact #{Azimutt.config(:support_email)} if it persists."
+
+  defp error_message(%Ecto.Changeset{} = changeset),
+    do: "Your account can't be created: #{to_message(changeset)}."
+
+  defp error_message(_err), do: "Authentication failed"
 
   defp to_map(%Ueberauth.Auth{} = data) do
     data.extra.raw_info.user

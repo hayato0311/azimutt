@@ -1,5 +1,6 @@
 defmodule Azimutt.Accounts do
   @moduledoc "The Accounts context."
+  require Logger
   import Ecto.Query, warn: false
   alias Azimutt.Repo
   alias Azimutt.Accounts.{User, UserAuthToken, UserNotifier, UserProfile, UserToken}
@@ -89,6 +90,13 @@ defmodule Azimutt.Accounts do
 
       {:error, :user, changeset, _} ->
         {:error, changeset}
+
+      {:error, :organization, {:stripe, message}, _} ->
+        {:error, {:stripe, message}}
+
+      {:error, :organization, err, _} ->
+        Logger.error("Can't create personal organization with #{method} registration: #{inspect(err)}")
+        {:error, {:organization, "Can't create your organization"}}
     end
   end
 
