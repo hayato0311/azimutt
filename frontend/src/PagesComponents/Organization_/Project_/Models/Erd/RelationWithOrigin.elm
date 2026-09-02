@@ -2,6 +2,7 @@ module PagesComponents.Organization_.Project_.Models.Erd.RelationWithOrigin expo
 
 import Models.Project.ColumnRef exposing (ColumnRef)
 import Models.Project.Relation exposing (Relation)
+import Models.Project.RelationCardinality exposing (RelationCardinality)
 import Models.Project.RelationId exposing (RelationId)
 import Models.Project.RelationName exposing (RelationName)
 import Models.Project.Source exposing (Source)
@@ -13,6 +14,8 @@ type alias RelationWithOrigin =
     , name : RelationName
     , src : ColumnRef
     , ref : ColumnRef
+    , srcCardinality : Maybe RelationCardinality
+    , refCardinality : Maybe RelationCardinality
     , origins : List ErdOrigin
     }
 
@@ -23,6 +26,8 @@ create source relation =
     , name = relation.name
     , src = relation.src
     , ref = relation.ref
+    , srcCardinality = relation.srcCardinality
+    , refCardinality = relation.refCardinality
     , origins = [ ErdOrigin.create source ]
     }
 
@@ -33,6 +38,8 @@ unpack relation =
     , name = relation.name
     , src = relation.src
     , ref = relation.ref
+    , srcCardinality = relation.srcCardinality
+    , refCardinality = relation.refCardinality
     }
 
 
@@ -42,5 +49,17 @@ merge r1 r2 =
     , name = r1.name
     , src = r1.src
     , ref = r1.ref
+    , srcCardinality = firstDefined r1.srcCardinality r2.srcCardinality
+    , refCardinality = firstDefined r1.refCardinality r2.refCardinality
     , origins = r1.origins ++ r2.origins
     }
+
+
+firstDefined : Maybe a -> Maybe a -> Maybe a
+firstDefined first second =
+    case first of
+        Just _ ->
+            first
+
+        Nothing ->
+            second

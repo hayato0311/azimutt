@@ -61,7 +61,9 @@ defmodule AzimuttWeb.Utils.ProjectSchema do
     "properties" => %{
       "name" => %{"type" => "string"},
       "src" => @column_ref,
-      "ref" => @column_ref
+      "ref" => @column_ref,
+      "srcCardinality" => %{"enum" => ["0", "1", "n"]},
+      "refCardinality" => %{"enum" => ["0", "1", "n"]}
     }
   }
 

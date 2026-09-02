@@ -70,7 +70,9 @@ jsonSchema =
         "properties": {
           "name": {"type": "string"},
           "src": {"$ref": "/columnRef"},
-          "ref": {"$ref": "/columnRef"}
+          "ref": {"$ref": "/columnRef"},
+          "srcCardinality": {"enum": ["0", "1", "n"]},
+          "refCardinality": {"enum": ["0", "1", "n"]}
         }
       }
     },

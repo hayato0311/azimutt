@@ -466,7 +466,7 @@ docColumnEmpty =
 
 docBuildRelation : ( TableName, ColumnName ) -> ( TableName, ColumnName ) -> Relation
 docBuildRelation ( srcTable, srcColumn ) ( refTable, refColumn ) =
-    { id = ( ( ( "", srcTable ), srcColumn ), ( ( "", refTable ), refColumn ) ), name = "", src = { table = ( "", srcTable ), column = Nel srcColumn [] }, ref = { table = ( "", refTable ), column = Nel refColumn [] } }
+    { id = ( ( ( "", srcTable ), srcColumn ), ( ( "", refTable ), refColumn ) ), name = "", src = { table = ( "", srcTable ), column = Nel srcColumn [] }, ref = { table = ( "", refTable ), column = Nel refColumn [] }, srcCardinality = Nothing, refCardinality = Nothing }
 
 
 docBuildLayout : List ( TableIdStr, List ColumnPathStr ) -> ErdLayout

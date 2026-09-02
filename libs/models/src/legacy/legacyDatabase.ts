@@ -14,6 +14,7 @@ import {
     Index,
     PrimaryKey,
     Relation,
+    RelationCardinality,
     Type
 } from "../database";
 import {attributePathToId, attributeValueToString, entityToId} from "../databaseUtils";
@@ -143,8 +144,20 @@ export const LegacyColumnRef = z.object({
     table: LegacyTableId,
     column: LegacyColumnName
 }).strict()
-export type LegacyRelation = { name: LegacyRelationName, src: LegacyColumnRef, ref: LegacyColumnRef }
-export const LegacyRelation = z.object({name: LegacyRelationName, src: LegacyColumnRef, ref: LegacyColumnRef}).strict()
+export type LegacyRelation = {
+    name: LegacyRelationName
+    src: LegacyColumnRef
+    ref: LegacyColumnRef
+    srcCardinality?: RelationCardinality
+    refCardinality?: RelationCardinality
+}
+export const LegacyRelation = z.object({
+    name: LegacyRelationName,
+    src: LegacyColumnRef,
+    ref: LegacyColumnRef,
+    srcCardinality: RelationCardinality.optional(),
+    refCardinality: RelationCardinality.optional()
+}).strict()
 type LegacyTypeContent = { values: string[] | null } | { definition: string }
 const LegacyTypeContent = z.union([
     z.object({values: z.string().array().nullable()}),
@@ -396,13 +409,19 @@ export function checkToLegacy(c: Check): LegacyCheck {
 export function relationFromLegacy(r: LegacyRelation): Relation {
     return removeUndefined({
         name: r.name || undefined,
-        src: {...columnRefFromLegacy2(r.src), attrs: [r.src.column.split(legacyColumnPathSeparator)]},
-        ref: {...columnRefFromLegacy2(r.ref), attrs: [r.ref.column.split(legacyColumnPathSeparator)]},
+        src: removeUndefined({...columnRefFromLegacy2(r.src), attrs: [r.src.column.split(legacyColumnPathSeparator)], cardinality: r.srcCardinality}),
+        ref: removeUndefined({...columnRefFromLegacy2(r.ref), attrs: [r.ref.column.split(legacyColumnPathSeparator)], cardinality: r.refCardinality}),
     })
 }
 
 function relationToLegacy(r: Relation): LegacyRelation[] {
-    return zip(r.src.attrs, r.ref.attrs).map(([srcAttr, refAttr]) => ({ name: r.name || '', src: columnRefToLegacy2(r.src, srcAttr), ref: columnRefToLegacy2(r.ref, refAttr) }))
+    return zip(r.src.attrs, r.ref.attrs).map(([srcAttr, refAttr]) => removeUndefined({
+        name: r.name || '',
+        src: columnRefToLegacy2(r.src, srcAttr),
+        ref: columnRefToLegacy2(r.ref, refAttr),
+        srcCardinality: r.src.cardinality,
+        refCardinality: r.ref.cardinality
+    }))
 }
 
 export function tableRefFromId(id: LegacyTableId): LegacyTableRef {

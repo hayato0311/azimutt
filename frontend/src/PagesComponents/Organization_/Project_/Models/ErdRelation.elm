@@ -3,6 +3,7 @@ module PagesComponents.Organization_.Project_.Models.ErdRelation exposing (ErdRe
 import Dict exposing (Dict)
 import Models.Project.ColumnRef as ColumnRef exposing (ColumnRef)
 import Models.Project.Relation exposing (Relation)
+import Models.Project.RelationCardinality exposing (RelationCardinality)
 import Models.Project.RelationId as RelationId exposing (RelationId)
 import Models.Project.RelationName exposing (RelationName)
 import Models.Project.SchemaName exposing (SchemaName)
@@ -18,13 +19,15 @@ type alias ErdRelation =
     , name : RelationName
     , src : ErdColumnRef
     , ref : ErdColumnRef
+    , srcCardinality : Maybe RelationCardinality
+    , refCardinality : Maybe RelationCardinality
     , origins : List ErdOrigin
     }
 
 
 new : RelationName -> ErdColumnRef -> ErdColumnRef -> List ErdOrigin -> ErdRelation
 new name src ref origins =
-    ErdRelation (RelationId.new src ref) name src ref origins
+    ErdRelation (RelationId.new src ref) name src ref Nothing Nothing origins
 
 
 create : Dict TableId TableWithOrigin -> RelationWithOrigin -> ErdRelation
@@ -33,6 +36,8 @@ create tables relation =
     , name = relation.name
     , src = relation.src |> ErdColumnRef.create tables
     , ref = relation.ref |> ErdColumnRef.create tables
+    , srcCardinality = relation.srcCardinality
+    , refCardinality = relation.refCardinality
     , origins = relation.origins
     }
 
@@ -43,6 +48,8 @@ unpack relation =
     , name = relation.name
     , src = relation.src |> ErdColumnRef.unpack
     , ref = relation.ref |> ErdColumnRef.unpack
+    , srcCardinality = relation.srcCardinality
+    , refCardinality = relation.refCardinality
     }
 
 

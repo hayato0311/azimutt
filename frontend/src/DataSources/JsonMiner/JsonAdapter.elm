@@ -52,8 +52,13 @@ buildSource source jsonSchema =
 
 buildSchema : JsonSchema -> Schema
 buildSchema schema =
-    { tables = schema.tables |> List.map buildTable |> Dict.fromListBy .id
-    , relations = schema.relations |> List.map buildRelation
+    let
+        tables : Dict TableId.TableId Table
+        tables =
+            schema.tables |> List.map buildTable |> Dict.fromListBy .id
+    in
+    { tables = tables
+    , relations = schema.relations |> List.map buildRelation |> List.map (Relation.inferCardinality tables)
     , types = schema.types |> List.map buildType |> Dict.fromListBy .id
     }
 
@@ -221,9 +226,11 @@ unpackComment comment =
 
 buildRelation : JsonRelation -> Relation
 buildRelation relation =
-    Relation.new relation.name
+    Relation.newWithCardinality relation.name
         { table = relation.src.table |> TableId.parse, column = ColumnPath.fromString relation.src.column }
         { table = relation.ref.table |> TableId.parse, column = ColumnPath.fromString relation.ref.column }
+        relation.srcCardinality
+        relation.refCardinality
 
 
 unpackRelation : Relation -> JsonRelation
@@ -237,6 +244,8 @@ unpackRelation relation =
         { table = relation.ref.table |> TableId.toString
         , column = relation.ref.column |> ColumnPath.toString
         }
+    , srcCardinality = relation.srcCardinality
+    , refCardinality = relation.refCardinality
     }
 
 

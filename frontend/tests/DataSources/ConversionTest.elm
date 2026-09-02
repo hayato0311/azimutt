@@ -14,7 +14,8 @@ import Libs.Nel as Nel exposing (Nel)
 import Models.Project.Column as Column exposing (Column)
 import Models.Project.ColumnName exposing (ColumnName)
 import Models.Project.Comment exposing (Comment)
-import Models.Project.Relation exposing (Relation)
+import Models.Project.Relation as Relation exposing (Relation)
+import Models.Project.RelationCardinality exposing (RelationCardinality(..))
 import Models.Project.Schema exposing (Schema)
 import Models.Project.Table as Table exposing (Table)
 import Models.Project.TableId exposing (TableId)
@@ -29,6 +30,34 @@ suite =
         , test "parse MySQL" (\_ -> crmMysql |> parseSql |> Expect.equal crmSchema)
         , test "generate MySQL" (\_ -> crmSchema |> MysqlGenerator.generate |> Expect.equal crmMysql)
         , test "parse JSON" (\_ -> crmJson |> parseJson |> Expect.equal crmSchema)
+        , test "preserve explicit cardinality from JSON" <|
+            \_ ->
+                explicitCardinalityJson
+                    |> parseJson
+                    |> .relations
+                    |> List.map (\relation -> ( relation.srcCardinality, relation.refCardinality ))
+                    |> Expect.equal [ ( Just One, Just One ) ]
+        , test "infer one-to-one from JSON uniques" <|
+            \_ ->
+                inferredCardinalityJson
+                    |> parseJson
+                    |> .relations
+                    |> List.map .srcCardinality
+                    |> Expect.equal [ Just One ]
+        , test "infer one-to-one from a single-column unique" <|
+            \_ ->
+                uniqueForeignKeySql
+                    |> parseSql
+                    |> .relations
+                    |> List.map .srcCardinality
+                    |> Expect.equal [ Just One ]
+        , test "do not infer one-to-one from part of a composite unique" <|
+            \_ ->
+                compositeUniqueForeignKeySql
+                    |> parseSql
+                    |> .relations
+                    |> List.map .srcCardinality
+                    |> Expect.equal [ Nothing ]
         ]
 
 
@@ -151,6 +180,62 @@ CREATE TABLE roles (
   name varchar NOT NULL
 );
 ALTER TABLE contact_roles ADD CONSTRAINT contact_roles_role_id_fk_az FOREIGN KEY (role_id) REFERENCES roles(id);"""
+
+
+uniqueForeignKeySql : String
+uniqueForeignKeySql =
+    """CREATE TABLE users (
+  id bigint PRIMARY KEY
+);
+CREATE TABLE profiles (
+  id bigint PRIMARY KEY,
+  user_id bigint REFERENCES users(id),
+  UNIQUE KEY profiles_user_id_key (user_id)
+);"""
+
+
+compositeUniqueForeignKeySql : String
+compositeUniqueForeignKeySql =
+    """CREATE TABLE users (
+  id bigint PRIMARY KEY
+);
+CREATE TABLE profiles (
+  id bigint PRIMARY KEY,
+  tenant_id bigint NOT NULL,
+  user_id bigint REFERENCES users(id),
+  UNIQUE (tenant_id, user_id)
+);"""
+
+
+explicitCardinalityJson : String
+explicitCardinalityJson =
+    relationJson """
+      "srcCardinality": "1",
+      "refCardinality": "1",
+"""
+
+
+inferredCardinalityJson : String
+inferredCardinalityJson =
+    relationJson ""
+
+
+relationJson : String -> String
+relationJson cardinalities =
+    """{
+  "tables": [
+    {"schema": "", "table": "users", "columns": [{"name": "id", "type": "bigint"}]},
+    {"schema": "", "table": "profiles", "columns": [{"name": "user_id", "type": "bigint"}], "uniques": [{"columns": ["user_id"]}]}
+  ],
+  "relations": [{
+    "name": "profiles_user",
+"""
+        ++ cardinalities
+        ++ """
+    "src": {"table": ".profiles", "column": "user_id"},
+    "ref": {"table": ".users", "column": "id"}
+  }]
+}"""
 
 
 crmJson : String
@@ -293,7 +378,7 @@ parseSql sql =
         |> SqlParser.parse
         |> Tuple.second
         |> List.foldl (\c s -> s |> SqlAdapter.evolve ( Nel.from { index = 0, text = "" }, c )) SqlAdapter.initSchema
-        |> (\schema -> { tables = schema.tables, relations = schema.relations |> List.sortBy .id, types = schema.types |> Dict.fromListBy .id })
+        |> (\schema -> { tables = schema.tables, relations = schema.relations |> List.map (Relation.inferCardinality schema.tables) |> List.sortBy .id, types = schema.types |> Dict.fromListBy .id })
 
 
 parseJson : String -> Schema
@@ -336,4 +421,6 @@ buildRelation ( name, ( srcSchema, srcTable, srcColumn ), ( refSchema, refTable,
     , name = name
     , src = { table = ( srcSchema, srcTable ), column = Nel.from srcColumn }
     , ref = { table = ( refSchema, refTable ), column = Nel.from refColumn }
+    , srcCardinality = Nothing
+    , refCardinality = Nothing
     }

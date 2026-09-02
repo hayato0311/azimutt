@@ -25,7 +25,7 @@ describe('legacyDatabase', () => {
                     {schema: 'public', name: 'posts', attrs: [{name: 'id', type: 'uuid'}, {name: 'status', type: 'post_status'}, {name: 'author', type: 'uuid'}]},
                 ],
                 relations: [
-                    {name: 'posts_author', src: {schema: 'public', entity: 'posts', attrs: [['author']]}, ref: {schema: 'public', entity: 'users', attrs: [['id']]}}
+                    {name: 'posts_author', src: {schema: 'public', entity: 'posts', attrs: [['author']], cardinality: '1'}, ref: {schema: 'public', entity: 'users', attrs: [['id']], cardinality: '1'}}
                 ],
                 types: [
                     {schema: 'public', name: 'post_status', values: ['draft', 'published', 'archived']},
@@ -38,7 +38,7 @@ describe('legacyDatabase', () => {
                     {schema: 'public', table: 'posts', columns: [{name: 'id', type: 'uuid'}, {name: 'status', type: 'post_status'}, {name: 'author', type: 'uuid'}]},
                 ],
                 relations: [
-                    {name: 'posts_author', src: {table: 'public.posts', column: 'author'}, ref: {table: 'public.users', column: 'id'}},
+                    {name: 'posts_author', src: {table: 'public.posts', column: 'author'}, ref: {table: 'public.users', column: 'id'}, srcCardinality: '1', refCardinality: '1'},
                 ],
                 types: [
                     {schema: 'public', name: 'post_status', values: ['draft', 'published', 'archived']},
